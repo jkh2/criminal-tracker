@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRIMINAL TRACKER — Colorado Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<style>
+  :root {
+    --bg:         #0a0c10;
+    --surface:    #0e1218;
+    --panel:      #0c0f14;
+    --border:     #1e2530;
+    --border-lit: #2e3a4a;
+    --blue:       #4a9eff;
+    --blue-dim:   #1a3a5c;
+    --blue-lit:   #7abfff;
+    --amber:      #e8a020;
+    --amber-lit:  #f0c060;
+    --red:        #e03030;
+    --red-dim:    #4a1010;
+    --red-lit:    #ff6060;
+    --green:      #30a060;
+    --text:       #c8d4e0;
+    --text-dim:   #6a7a8a;
+    --text-mute:  #3a4a5a;
+    --glass:      rgba(10, 12, 16, 0.88);
+    --glass-strong: rgba(10, 12, 16, 0.95);
+    --glow-blue:  0 0 20px rgba(74,158,255,0.10);
+    --glow-red:   0 0 20px rgba(224,48,48,0.10);
+    --shadow-deep: 0 16px 48px rgba(0,0,0,0.6);
+    --font-head:  'Bebas Neue', sans-serif;
+    --font-mono:  'IBM Plex Mono', monospace;
+    --font-body:  'IBM Plex Sans', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 52px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(14,18,28,0.98), rgba(10,12,16,0.98));
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1000;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+  }
+
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-icon {
+    width: 28px; height: 28px;
+    border: 1.5px solid var(--blue);
+    border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--blue-lit);
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: 0;
+    box-shadow: var(--glow-blue);
+  }
+  .brand-name {
+    font-family: var(--font-head);
+    font-size: 22px;
+    letter-spacing: 4px;
+    color: var(--text);
+    line-height: 1;
+  }
+  .brand-name span { color: var(--blue-lit); }
+  .brand-sub {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--text-mute);
+    letter-spacing: 2px;
+    margin-top: 2px;
+  }
+
+  /* Header controls */
+  .hdr-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .hdr-status-pin {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .status-pulse {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--blue);
+    animation: pulse 2.5s infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.3); }
+  }
+
+  #hdr-collapse-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 2px;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+    transition: all 0.12s;
+  }
+  #hdr-collapse-btn:hover { border-color: var(--blue); color: var(--blue-lit); }
+
+  .hdr-inner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: all 0.2s;
+    overflow: hidden;
+  }
+  .hdr-inner.collapsed { width: 0; gap: 0; opacity: 0; pointer-events: none; }
+
+  .base-toggle, .layer-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 2px;
+  }
+  .btog, .ltog {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    padding: 4px 9px;
+    cursor: pointer;
+    border-radius: 1px;
+    transition: all 0.12s;
+  }
+  .btog:hover, .ltog:hover { color: var(--text); background: var(--border); }
+  .btog.active { background: var(--blue-dim); color: var(--blue-lit); }
+  .ltog.active { background: var(--blue-dim); color: var(--blue-lit); }
+
+  .hdr-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  .hdr-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    padding: 5px 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    white-space: nowrap;
+    transition: all 0.12s;
+  }
+  .hdr-btn:hover { border-color: var(--blue-dim); color: var(--text); }
+  .hdr-btn.active { border-color: var(--blue); color: var(--blue-lit); background: rgba(74,158,255,0.05); }
+
+  .ai-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    padding: 5px 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.12s;
+    flex-shrink: 0;
+  }
+  .ai-btn:hover { border-color: var(--blue); color: var(--blue-lit); }
+  .ai-btn.active { border-color: var(--blue-lit); color: var(--blue-lit); background: rgba(74,158,255,0.07); }
+  .ai-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--blue-lit); animation: pulse 2s infinite; }
+
+  /* ─── APP BODY ─── */
+  .app-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ─── LEFT PANEL ─── */
+  .left-panel {
+    width: 300px;
+    flex-shrink: 0;
+    background: linear-gradient(180deg, rgba(12,15,20,0.98), rgba(10,12,16,0.99));
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    position: relative;
+    box-shadow: 8px 0 32px rgba(0,0,0,0.4);
+    transition: width 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  .left-panel.collapsed { width: 0 !important; border-right: none; }
+  .left-panel.collapsed .panel-inner { opacity: 0; pointer-events: none; }
+  .left-panel.collapsed #sidebar-tab { right: -23px; border-left: 1px solid var(--border); border-radius: 4px; }
+
+  #sidebar-tab {
+    position: absolute;
+    right: -22px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 52px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: none;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+    color: var(--text-dim);
+    font-size: 10px;
+    transition: background 0.15s;
+  }
+  #sidebar-tab:hover { background: var(--surface); color: var(--blue-lit); }
+
+  .panel-inner {
+    width: 300px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: opacity 0.15s;
+  }
+
+  .panel-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+  .panel-title {
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: var(--blue-lit);
+  }
+  .panel-sub {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--text-mute);
+    letter-spacing: 1.5px;
+    margin-top: 3px;
+  }
+
+  /* Filters */
+  .panel-section {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .panel-label {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--text-mute);
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  .filter-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .filter-full { grid-column: 1 / -1; }
+  select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 6px 8px;
+    border-radius: 2px;
+    outline: none;
+    letter-spacing: 0.5px;
+    appearance: none;
+    cursor: pointer;
+    transition: border-color 0.12s;
+  }
+  select:focus, select:hover { border-color: var(--blue-dim); }
+
+  /* Crime type toggle buttons */
+  .crime-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .ctog {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    letter-spacing: 1px;
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+  }
+  .ctog:hover { border-color: var(--border-lit); color: var(--text); }
+  .ctog.active.sex { border-color: var(--blue); color: var(--blue-lit); background: rgba(74,158,255,0.07); }
+  .ctog.active.drug { border-color: var(--amber); color: var(--amber-lit); background: rgba(232,160,32,0.06); }
+  .ctog.active.violent { border-color: var(--red); color: var(--red-lit); background: rgba(224,48,48,0.06); }
+  .ctog-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .sex-dot { background: var(--blue); }
+  .drug-dot { background: var(--amber); }
+  .violent-dot { background: var(--red); }
+
+  .btn-scan {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(74,158,255,0.15), rgba(74,158,255,0.08));
+    border: 1px solid var(--blue-dim);
+    color: var(--blue-lit);
+    font-family: var(--font-head);
+    font-size: 18px;
+    letter-spacing: 4px;
+    padding: 12px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+    margin-top: 2px;
+  }
+  .btn-scan:hover { background: linear-gradient(135deg, rgba(74,158,255,0.25), rgba(74,158,255,0.15)); border-color: var(--blue); }
+  .btn-scan:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Stats */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .stat-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 9px 10px;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .stat-val {
+    font-family: var(--font-head);
+    font-size: 22px;
+    color: var(--blue-lit);
+    line-height: 1;
+    letter-spacing: 1px;
+  }
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 7.5px;
+    color: var(--text-mute);
+    letter-spacing: 1.5px;
+    margin-top: 3px;
+  }
+
+  /* Intel brief */
+  .intel-brief {
+    background: linear-gradient(180deg, rgba(8,10,16,0.95), rgba(12,15,20,0.95));
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 10px 11px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), var(--glow-blue);
+  }
+  .brief-row {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .brief-row strong { color: var(--amber-lit); font-weight: 500; }
+  .brief-copy {
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-top: 7px;
+    border-top: 1px solid var(--border);
+    padding-top: 7px;
+  }
+
+  /* Legend */
+  .legend-rows { display: flex; flex-direction: column; gap: 5px; }
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+  .legend-dot { width: 10px; height: 10px; border-radius: 1px; flex-shrink: 0; }
+  .legend-note {
+    font-family: var(--font-mono);
+    font-size: 7.5px;
+    color: var(--text-mute);
+    margin-top: 8px;
+    line-height: 1.5;
+    letter-spacing: 0.5px;
+  }
+
+  /* Hot zones list */
+  .zones-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 10px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .zones-list::-webkit-scrollbar { width: 3px; }
+  .zones-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .zone-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--blue-dim);
+    padding: 9px 11px;
+    margin-bottom: 7px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: 0 2px 2px 0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 3px 10px rgba(0,0,0,0.18);
+  }
+  .zone-card:hover {
+    border-left-color: var(--amber);
+    background: linear-gradient(90deg, rgba(232,160,32,0.05), var(--surface));
+    transform: translateX(2px);
+  }
+  .zone-card.high { border-left-color: var(--red); box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 0 16px rgba(224,48,48,0.07); }
+  .zone-card.medium { border-left-color: var(--amber); box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 0 14px rgba(232,160,32,0.06); }
+  .zone-card.low { border-left-color: var(--blue-dim); }
+
+  .zone-rank { font-family: var(--font-mono); font-size: 8px; color: var(--text-mute); letter-spacing: 1px; margin-bottom: 4px; }
+  .zone-name { font-family: var(--font-head); font-size: 15px; letter-spacing: 2px; color: var(--text); line-height: 1; }
+  .zone-meta { font-family: var(--font-mono); font-size: 8px; color: var(--text-dim); margin-top: 4px; letter-spacing: 0.5px; line-height: 1.5; }
+  .zone-score-bar { height: 2px; background: var(--border); border-radius: 1px; margin-top: 6px; }
+  .zone-score-fill { height: 100%; border-radius: 1px; transition: width 0.3s; }
+
+  /* ─── MAP ─── */
+  #map { position: absolute; inset: 0; }
+  .leaflet-tile { filter: brightness(0.5) saturate(0.3) hue-rotate(200deg); }
+  .leaflet-container { background: var(--bg); }
+  .leaflet-container.sat-mode .leaflet-tile { filter: none; }
+
+  .map-vignette {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 350;
+    background:
+      radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.38) 100%),
+      linear-gradient(to bottom, rgba(74,158,255,0.02), transparent 18%, rgba(0,0,0,0.16));
+  }
+
+  /* Map info box */
+  .map-info {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: var(--glass-strong);
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    z-index: 400;
+    max-width: 220px;
+    line-height: 1.7;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), var(--shadow-deep);
+    backdrop-filter: blur(8px);
+  }
+
+  /* Loading overlay */
+  #loading {
+    position: absolute;
+    inset: 0;
+    background: rgba(10,12,16,0.88);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+  }
+  #loading.show { display: flex; }
+  .load-text { font-family: var(--font-head); font-size: 28px; letter-spacing: 6px; color: var(--blue-lit); margin-bottom: 20px; }
+  .load-bar-wrap { width: 240px; height: 2px; background: var(--border); border-radius: 1px; }
+  .load-bar { height: 100%; width: 0%; background: var(--blue); border-radius: 1px; transition: width 0.3s; }
+  #load-status { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); letter-spacing: 2px; margin-top: 10px; }
+
+  /* Popups */
+  .leaflet-popup-content-wrapper {
+    background: var(--panel) !important;
+    border: 1px solid var(--border-lit) !important;
+    border-radius: 2px !important;
+    box-shadow: var(--shadow-deep) !important;
+    color: var(--text) !important;
+  }
+  .leaflet-popup-tip { background: var(--border-lit) !important; }
+  .popup-title {
+    font-family: var(--font-head);
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--blue-lit);
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .popup-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .popup-row span:last-child { color: var(--text); text-align: right; }
+  .popup-badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 7.5px;
+    padding: 2px 6px;
+    border-radius: 1px;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+  .badge-sex { background: rgba(74,158,255,0.15); color: var(--blue-lit); border: 1px solid var(--blue-dim); }
+  .badge-drug { background: rgba(232,160,32,0.12); color: var(--amber-lit); border: 1px solid #3a2a10; }
+  .badge-violent { background: rgba(224,48,48,0.12); color: var(--red-lit); border: 1px solid var(--red-dim); }
+  .badge-svp { background: rgba(224,48,48,0.2); color: #ff4040; border: 1px solid #5a1010; }
+
+  /* ─── COLLAPSE SYSTEM ─── */
+  #hdr-collapse-btn { transition: all 0.12s; }
+  .hdr-inner { white-space: nowrap; }
+
+  /* ─── AI DRAWER ─── */
+  #ai-drawer {
+    position: fixed;
+    top: 52px;
+    right: -440px;
+    width: 420px;
+    height: calc(100vh - 52px);
+    background: linear-gradient(180deg, rgba(12,15,22,0.99), rgba(8,10,14,0.99));
+    border-left: 1px solid var(--border);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: -8px 0 48px rgba(0,0,0,0.75);
+    backdrop-filter: blur(12px);
+  }
+  #ai-drawer.open { right: 0; }
+  .ai-drawer-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    background: var(--surface);
+  }
+  .ai-drawer-title { font-family: var(--font-head); font-size: 16px; letter-spacing: 3px; color: var(--blue-lit); }
+  .ai-drawer-sub { font-family: var(--font-mono); font-size: 8px; color: var(--text-mute); letter-spacing: 1.5px; margin-top: 2px; }
+  .ai-close-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    font-family: var(--font-mono); font-size: 9px; padding: 4px 10px; cursor: pointer; border-radius: 1px; letter-spacing: 1px;
+  }
+  .ai-close-btn:hover { border-color: var(--blue); color: var(--blue-lit); }
+
+  .ai-provider-section { padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .ai-key-label { font-family: var(--font-mono); font-size: 8px; letter-spacing: 1.5px; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; }
+  .provider-tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+  .ptab {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
+    font-family: var(--font-mono); font-size: 8px; letter-spacing: 1px; padding: 6px 4px 5px;
+    cursor: pointer; border-radius: 2px; transition: all 0.12s; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .ptab:hover { border-color: var(--blue-dim); color: var(--text); }
+  .ptab.active { border-color: var(--blue-lit); color: var(--blue-lit); background: rgba(74,158,255,0.07); }
+  .ptab-name { font-weight: 500; letter-spacing: 1.5px; }
+  .ptab-badge { font-size: 7px; padding: 1px 4px; border-radius: 1px; letter-spacing: 0.5px; font-weight: 600; }
+  .ptab-badge.free { background: rgba(74,158,255,0.1); color: var(--blue-lit); border: 1px solid var(--blue-dim); }
+  .provider-info { font-family: var(--font-mono); font-size: 8.5px; color: var(--text-dim); line-height: 1.6; margin-bottom: 8px; padding: 7px 9px; background: var(--bg); border: 1px solid var(--border); border-radius: 2px; }
+  .provider-info a { color: var(--blue); text-decoration: none; }
+  .provider-info .info-model { color: var(--amber); margin-top: 3px; }
+  .ai-key-row { display: flex; gap: 6px; }
+  .ai-key-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: var(--font-mono); font-size: 10px; padding: 6px 8px; border-radius: 2px; outline: none; }
+  .ai-key-input:focus { border-color: var(--blue); }
+  .ai-key-save { background: var(--blue-dim); border: 1px solid var(--blue); color: var(--blue-lit); font-family: var(--font-mono); font-size: 9px; letter-spacing: 1px; padding: 6px 12px; cursor: pointer; border-radius: 2px; white-space: nowrap; }
+  .ai-key-save:hover { background: var(--blue); color: var(--bg); }
+  .ai-key-status { font-family: var(--font-mono); font-size: 8px; color: var(--text-mute); margin-top: 4px; letter-spacing: 1px; }
+  .ai-key-status.ok { color: var(--blue); }
+  .ai-key-tip { font-family: var(--font-mono); font-size: 8px; color: var(--text-mute); margin-top: 5px; letter-spacing: 0.5px; line-height: 1.5; }
+
+  #ai-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .msg { font-family: var(--font-mono); font-size: 10.5px; line-height: 1.65; border-radius: 2px; padding: 10px 12px; word-break: break-word; }
+  .msg-user { background: rgba(74,158,255,0.08); border: 1px solid var(--blue-dim); color: var(--blue-lit); align-self: flex-end; max-width: 88%; white-space: pre-wrap; }
+  .msg-ai { background: var(--bg); border: 1px solid var(--border); color: var(--text); align-self: flex-start; white-space: pre-wrap; }
+  .msg-ai .msg-sender { font-size: 8px; color: var(--blue); letter-spacing: 1.5px; margin-bottom: 5px; display: block; }
+  .msg-system { background: transparent; border: 1px dashed var(--border); color: var(--text-dim); font-size: 9.5px; text-align: center; padding: 8px; }
+  .msg-typing { background: var(--bg); border: 1px solid var(--border); color: var(--text-dim); font-size: 10px; }
+  .typing-dots span { animation: typingBounce 1.2s infinite; display: inline-block; margin: 0 1px; }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingBounce { 0%,80%,100%{opacity:0.2;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)} }
+
+  .quick-prompts { padding: 8px 12px; border-top: 1px solid var(--border); flex-shrink: 0; display: flex; flex-wrap: wrap; gap: 5px; }
+  .quick-label { font-family: var(--font-mono); font-size: 8px; color: var(--text-mute); letter-spacing: 1px; width: 100%; margin-bottom: 2px; }
+  .qp { background: var(--bg); border: 1px solid var(--border); color: var(--text-dim); font-family: var(--font-mono); font-size: 8.5px; padding: 4px 8px; cursor: pointer; border-radius: 2px; transition: all 0.1s; letter-spacing: 0.5px; line-height: 1.4; }
+  .qp:hover { border-color: var(--blue); color: var(--blue-lit); background: rgba(74,158,255,0.05); }
+
+  .ai-input-row { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--border); flex-shrink: 0; background: var(--surface); }
+  #ai-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); font-family: var(--font-mono); font-size: 10.5px; padding: 8px 10px; border-radius: 2px; outline: none; resize: none; line-height: 1.4; max-height: 80px; min-height: 36px; }
+  #ai-input:focus { border-color: var(--blue); }
+  #ai-send { background: var(--blue-dim); border: 1px solid var(--blue); color: var(--blue-lit); font-family: var(--font-head); font-size: 13px; letter-spacing: 1px; padding: 0 14px; cursor: pointer; border-radius: 2px; align-self: flex-end; height: 36px; transition: all 0.12s; }
+  #ai-send:hover { background: var(--blue); color: var(--bg); }
+  #ai-send:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ─── MOBILE ─── */
+  @media (max-width: 768px) {
+    .left-panel { width: 280px; }
+    .panel-inner { width: 280px; }
+    header { padding: 0 12px; height: 48px; }
+    .brand-sub { display: none; }
+    #ai-drawer { width: 100vw; right: -100vw; top: 48px; height: calc(100vh - 48px); }
+    #ai-drawer.open { right: 0; }
+    select { padding: 10px 8px; font-size: 13px; min-height: 44px; }
+    .btn-scan { padding: 14px; font-size: 16px; }
+  }
+  @media (max-width: 480px) {
+    .brand-name { font-size: 18px; letter-spacing: 2px; }
+    .hdr-inner { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">CT</div>
+    <div>
+      <div class="brand-name"><span>CRIMINAL</span> TRACKER</div>
+      <div class="brand-sub">COLORADO INTELLIGENCE SYSTEM · SLV REGION MVP</div>
+    </div>
+  </div>
+  <div class="hdr-controls">
+    <div class="hdr-status-pin">
+      <div class="status-pulse"></div>
+      <span id="hdr-status">READY</span>
+    </div>
+    <button id="hdr-collapse-btn" onclick="toggleHeaderControls()" title="Toggle controls">⊟</button>
+    <div class="hdr-inner" id="hdr-inner">
+      <div class="base-toggle">
+        <button class="btog active" data-base="map" onclick="setBaseLayer('map')">MAP</button>
+        <button class="btog" data-base="sat" onclick="setBaseLayer('sat')">SAT</button>
+      </div>
+      <div class="hdr-divider"></div>
+      <div class="layer-toggle" id="layer-toggle" style="display:none">
+        <button class="ltog active" data-mode="heat" onclick="setLayerMode('heat')">HEAT</button>
+        <button class="ltog" data-mode="county" onclick="setLayerMode('county')">COUNTY</button>
+        <button class="ltog" data-mode="both" onclick="setLayerMode('both')">BOTH</button>
+      </div>
+      <div class="hdr-divider" id="layer-divider" style="display:none"></div>
+      <button class="hdr-btn" id="county-btn" onclick="toggleCountyLayer()" title="Toggle county overlay">COUNTIES</button>
+      <span id="hdr-count" style="font-family:var(--font-mono);font-size:8px;color:var(--text-mute);letter-spacing:1px;display:none"><span id="hdr-count-val">0</span> RECORDS</span>
+      <span style="font-family:var(--font-mono);font-size:8px;color:var(--text-mute);letter-spacing:1px;">SRC: CBI + FBI NIBRS</span>
+    </div>
+    <button class="ai-btn" id="ai-toggle-btn" onclick="toggleAIDrawer()">
+      <span class="ai-dot"></span>FIELD AI
+    </button>
+  </div>
+</header>
+
+<div class="app-body">
+
+  <!-- LEFT PANEL -->
+  <div class="left-panel" id="left-panel">
+    <button id="sidebar-tab" onclick="toggleSidebar()" title="Toggle panel">‹</button>
+    <div class="panel-inner">
+
+      <div class="panel-header">
+        <div class="panel-title">INTELLIGENCE PANEL</div>
+        <div class="panel-sub">// SAN LUIS VALLEY · COLORADO REGION</div>
+      </div>
+
+      <!-- Crime Type Filters -->
+      <div class="panel-section">
+        <div class="panel-label">// Crime Categories</div>
+        <div class="crime-toggles">
+          <button class="ctog active sex" data-type="sex" onclick="toggleCrimeType('sex')">
+            <span>SEX OFFENDERS</span>
+            <span class="ctog-dot sex-dot"></span>
+          </button>
+          <button class="ctog active drug" data-type="drug" onclick="toggleCrimeType('drug')">
+            <span>DRUG OFFENSES</span>
+            <span class="ctog-dot drug-dot"></span>
+          </button>
+          <button class="ctog active violent" data-type="violent" onclick="toggleCrimeType('violent')">
+            <span>VIOLENT OFFENSES</span>
+            <span class="ctog-dot violent-dot"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="panel-section">
+        <div class="panel-label">// Parameters</div>
+        <div class="filter-grid">
+          <div>
+            <div style="font-family:var(--font-mono);font-size:7.5px;color:var(--text-mute);letter-spacing:1px;margin-bottom:4px">REGION</div>
+            <select id="sel-region">
+              <option value="slv">SLV Counties</option>
+              <option value="all">All Colorado</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-family:var(--font-mono);font-size:7.5px;color:var(--text-mute);letter-spacing:1px;margin-bottom:4px">DATA YEAR</div>
+            <select id="sel-year">
+              <option value="2022">2022</option>
+              <option value="2021">2021</option>
+              <option value="2020">2020</option>
+              <option value="all">All Years</option>
+            </select>
+          </div>
+          <div class="filter-full">
+            <div style="font-family:var(--font-mono);font-size:7.5px;color:var(--text-mute);letter-spacing:1px;margin-bottom:4px">SEVERITY FILTER</div>
+            <select id="sel-severity">
+              <option value="all">All Offenses</option>
+              <option value="svp">SVP / High Risk Only</option>
+              <option value="felony">Felony Only</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn-scan" id="btn-scan" onclick="runScan()">RUN SCAN</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="panel-section">
+        <div class="panel-label">// Signal Summary</div>
+        <div class="stat-grid">
+          <div class="stat-box">
+            <div class="stat-val" id="stat-total">—</div>
+            <div class="stat-label">RECORDS</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="stat-hot">—</div>
+            <div class="stat-label">HOT ZONES</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="stat-sex">—</div>
+            <div class="stat-label">SEX OFF.</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="stat-drug">—</div>
+            <div class="stat-label">DRUG OFF.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Intel Brief -->
+      <div class="panel-section">
+        <div class="panel-label">// Intel Brief</div>
+        <div class="intel-brief" id="intel-brief">
+          <div class="brief-row"><span>STATUS</span><strong>Awaiting scan</strong></div>
+          <div class="brief-copy">Run a scan to generate a regional intelligence brief.</div>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="panel-section">
+        <div class="panel-label">// Heat Intensity</div>
+        <div class="legend-rows">
+          <div class="legend-row"><div class="legend-dot" style="background:#ff2020"></div>CRITICAL — Highest density</div>
+          <div class="legend-row"><div class="legend-dot" style="background:#ff8020"></div>HIGH — Significant activity</div>
+          <div class="legend-row"><div class="legend-dot" style="background:#e8a020"></div>MODERATE — Active area</div>
+          <div class="legend-row"><div class="legend-dot" style="background:#4a9eff"></div>LOW — Registered presence</div>
+        </div>
+        <div class="legend-note">
+          Heat map shows density clusters only.<br>
+          No individual records are displayed.<br>
+          ⚠ SAMPLE DATA — For demonstration only.
+        </div>
+      </div>
+
+      <!-- Zone List -->
+      <div style="font-family:var(--font-mono);font-size:8px;color:var(--text-mute);letter-spacing:2px;padding:10px 14px 6px;flex-shrink:0;border-top:1px solid var(--border)">
+        // HOT ZONE RANKING
+      </div>
+      <div class="zones-list" id="zones-list">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-mute);text-align:center;padding:20px;letter-spacing:1px">
+          Run a scan to populate zone rankings.
+        </div>
+      </div>
+
+    </div><!-- /panel-inner -->
+  </div><!-- /left-panel -->
+
+  <!-- MAP -->
+  <div style="flex:1;position:relative;">
+    <div id="map"></div>
+    <div class="map-vignette"></div>
+
+    <div id="loading">
+      <div class="load-text">SCANNING</div>
+      <div class="load-bar-wrap"><div class="load-bar" id="load-bar"></div></div>
+      <div id="load-status" style="font-family:var(--font-mono);font-size:9px;color:var(--text-dim);letter-spacing:2px;margin-top:10px">Initializing...</div>
+    </div>
+
+    <div class="map-info">
+      <div style="color:var(--blue-lit);font-weight:500;letter-spacing:1.5px;margin-bottom:4px">CRIMINAL TRACKER</div>
+      <div>SRC: CBI Sex Offender Registry + FBI NIBRS</div>
+      <div style="color:var(--text-mute)">Sentinel AI Systems · v1.0 MVP</div>
+      <div style="color:var(--red);font-size:8px;margin-top:4px">⚠ SAMPLE DATA — Demonstration only</div>
+      <div style="color:var(--text-mute);font-size:7.5px;margin-top:3px">Always verify with official sources. Not legal advice.</div>
+    </div>
+  </div>
+
+</div><!-- /app-body -->
+
+<!-- AI DRAWER -->
+<div id="ai-drawer">
+  <div class="ai-drawer-header">
+    <div>
+      <div class="ai-drawer-title">⬡ FIELD INTELLIGENCE</div>
+      <div class="ai-drawer-sub">CRIMINAL TRACKER AI ANALYST</div>
+    </div>
+    <button class="ai-close-btn" onclick="toggleAIDrawer()">✕ CLOSE</button>
+  </div>
+
+  <div class="ai-provider-section">
+    <div class="ai-key-label">// Select AI Provider</div>
+    <div class="provider-tabs">
+      <button class="ptab active" data-provider="groq" onclick="selectProvider('groq')">
+        <span class="ptab-name">GROQ</span>
+        <span class="ptab-badge free">FREE</span>
+      </button>
+      <button class="ptab" data-provider="anthropic" onclick="selectProvider('anthropic')">
+        <span class="ptab-name">CLAUDE</span>
+      </button>
+      <button class="ptab" data-provider="openai" onclick="selectProvider('openai')">
+        <span class="ptab-name">OPENAI</span>
+      </button>
+      <button class="ptab" data-provider="xai" onclick="selectProvider('xai')">
+        <span class="ptab-name">GROK</span>
+      </button>
+    </div>
+    <div id="provider-info" class="provider-info"></div>
+    <div class="ai-key-row">
+      <input type="password" id="ai-key-input" class="ai-key-input" placeholder="Enter API key..." autocomplete="off">
+      <button class="ai-key-save" onclick="saveAPIKey()">SET KEY</button>
+    </div>
+    <div id="ai-key-status" class="ai-key-status">No key set</div>
+    <div class="ai-key-tip">⚑ Key lives in this browser tab only. Use a limited-scope or disposable key.</div>
+  </div>
+
+  <div id="ai-messages">
+    <div class="msg msg-system">
+      Field Intelligence online. Select a provider, enter your API key, and ask about crime patterns, hot zones, offender registry data, or regional intelligence strategy.
+    </div>
+  </div>
+
+  <div class="quick-prompts">
+    <div class="quick-label">// Quick Intelligence Requests</div>
+    <button class="qp" onclick="quickAsk('What do the current hot zones tell us about crime patterns in this region?')">Hot zone analysis</button>
+    <button class="qp" onclick="quickAsk('What are the highest-risk areas in the San Luis Valley and why?')">SLV risk assessment</button>
+    <button class="qp" onclick="quickAsk('How should law enforcement prioritize patrol resources based on this data?')">Patrol strategy</button>
+    <button class="qp" onclick="quickAsk('Explain the difference between sex offender density and violent crime density on this map.')">Layer comparison</button>
+    <button class="qp" onclick="quickAsk('What are the limitations of this data for law enforcement use?')">Data limitations</button>
+    <button class="qp" onclick="quickAsk('How does recidivism risk factor into interpreting sex offender registry data?')">Recidivism context</button>
+  </div>
+
+  <div class="ai-input-row">
+    <textarea id="ai-input" placeholder="Ask about crime patterns, zones, or regional intelligence..." rows="1"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIMessage()}"
+      oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'"></textarea>
+    <button id="ai-send" onclick="sendAIMessage()">SEND</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// CRIMINAL TRACKER — Colorado Intelligence System
+// Built by James Keith Harwood II + Claude Sentinel (Sentinel AI Systems)
+// v1.0 MVP — SLV Region
+// ═══════════════════════════════════════════════════════════════════
+
+// ─── SAMPLE DATA ──────────────────────────────────────────────────
+// These are fictional records structured exactly like real CBI registry data.
+// Replace SAMPLE_OFFENDERS with real geocoded CBI data when available.
+// Fields: lat, lng, type ('sex'|'drug'|'violent'), severity ('svp'|'felony'|'misdemeanor'),
+//         offense (string), year (int), county (string)
+
+const SAMPLE_OFFENDERS = [
+  // Alamosa County (most populated SLV county)
+  {lat:37.469,lng:-105.871,type:'sex',severity:'svp',offense:'Sexual Assault',year:2022,county:'Alamosa'},
+  {lat:37.474,lng:-105.878,type:'sex',severity:'felony',offense:'Unlawful Sexual Contact',year:2021,county:'Alamosa'},
+  {lat:37.461,lng:-105.865,type:'sex',severity:'felony',offense:'Sexual Assault',year:2020,county:'Alamosa'},
+  {lat:37.483,lng:-105.892,type:'sex',severity:'felony',offense:'Enticement of Child',year:2022,county:'Alamosa'},
+  {lat:37.455,lng:-105.858,type:'sex',severity:'svp',offense:'Sexual Assault x2',year:2019,county:'Alamosa'},
+  {lat:37.491,lng:-105.901,type:'drug',severity:'felony',offense:'Drug Distribution',year:2022,county:'Alamosa'},
+  {lat:37.468,lng:-105.883,type:'drug',severity:'felony',offense:'Possession w/ Intent',year:2021,county:'Alamosa'},
+  {lat:37.476,lng:-105.870,type:'drug',severity:'felony',offense:'Drug Manufacturing',year:2022,county:'Alamosa'},
+  {lat:37.458,lng:-105.875,type:'violent',severity:'felony',offense:'Aggravated Assault',year:2022,county:'Alamosa'},
+  {lat:37.472,lng:-105.862,type:'violent',severity:'felony',offense:'Robbery',year:2021,county:'Alamosa'},
+  {lat:37.485,lng:-105.880,type:'violent',severity:'felony',offense:'Assault',year:2020,county:'Alamosa'},
+  {lat:37.463,lng:-105.895,type:'sex',severity:'felony',offense:'Internet Luring',year:2022,county:'Alamosa'},
+  {lat:37.479,lng:-105.868,type:'drug',severity:'felony',offense:'Trafficking',year:2022,county:'Alamosa'},
+  {lat:37.452,lng:-105.882,type:'violent',severity:'felony',offense:'Domestic Violence',year:2021,county:'Alamosa'},
+  {lat:37.488,lng:-105.873,type:'sex',severity:'felony',offense:'Sexual Assault',year:2020,county:'Alamosa'},
+  // Monte Vista area (Rio Grande County)
+  {lat:37.579,lng:-106.149,type:'sex',severity:'felony',offense:'Sexual Assault',year:2022,county:'Rio Grande'},
+  {lat:37.584,lng:-106.156,type:'sex',severity:'svp',offense:'Sexual Assault x2',year:2021,county:'Rio Grande'},
+  {lat:37.572,lng:-106.141,type:'drug',severity:'felony',offense:'Distribution',year:2022,county:'Rio Grande'},
+  {lat:37.591,lng:-106.162,type:'violent',severity:'felony',offense:'Assault',year:2021,county:'Rio Grande'},
+  {lat:37.568,lng:-106.148,type:'sex',severity:'felony',offense:'Unlawful Contact',year:2020,county:'Rio Grande'},
+  // Del Norte (Rio Grande County seat)
+  {lat:37.675,lng:-106.352,type:'sex',severity:'felony',offense:'Sexual Assault',year:2022,county:'Rio Grande'},
+  {lat:37.681,lng:-106.359,type:'drug',severity:'felony',offense:'Possession w/ Intent',year:2021,county:'Rio Grande'},
+  {lat:37.668,lng:-106.344,type:'violent',severity:'felony',offense:'Robbery',year:2022,county:'Rio Grande'},
+  {lat:37.673,lng:-106.365,type:'sex',severity:'felony',offense:'Enticement',year:2020,county:'Rio Grande'},
+  // Antonito / Conejos County
+  {lat:37.082,lng:-105.987,type:'sex',severity:'felony',offense:'Sexual Assault',year:2022,county:'Conejos'},
+  {lat:37.088,lng:-105.994,type:'drug',severity:'felony',offense:'Trafficking',year:2021,county:'Conejos'},
+  {lat:37.075,lng:-105.981,type:'violent',severity:'felony',offense:'Assault',year:2022,county:'Conejos'},
+  {lat:37.094,lng:-106.001,type:'sex',severity:'svp',offense:'Sexual Assault',year:2020,county:'Conejos'},
+  // La Jara / Conejos rural
+  {lat:37.263,lng:-105.951,type:'sex',severity:'felony',offense:'Sexual Contact',year:2021,county:'Conejos'},
+  {lat:37.271,lng:-105.958,type:'drug',severity:'felony',offense:'Manufacturing',year:2022,county:'Conejos'},
+  // Saguache County
+  {lat:38.084,lng:-106.143,type:'sex',severity:'felony',offense:'Sexual Assault',year:2022,county:'Saguache'},
+  {lat:38.091,lng:-106.150,type:'drug',severity:'felony',offense:'Distribution',year:2021,county:'Saguache'},
+  {lat:38.077,lng:-106.136,type:'violent',severity:'felony',offense:'Assault',year:2022,county:'Saguache'},
+  // Moffat / San Luis (Costilla County)
+  {lat:37.188,lng:-105.431,type:'sex',severity:'felony',offense:'Sexual Assault',year:2022,county:'Costilla'},
+  {lat:37.195,lng:-105.438,type:'drug',severity:'felony',offense:'Possession',year:2021,county:'Costilla'},
+  {lat:37.181,lng:-105.424,type:'violent',severity:'felony',offense:'Domestic Violence',year:2022,county:'Costilla'},
+  // Trinidad (Las Animas — outside SLV, near Costilla border)
+  {lat:37.169,lng:-104.500,type:'sex',severity:'svp',offense:'Sexual Assault',year:2022,county:'Las Animas'},
+  {lat:37.175,lng:-104.507,type:'drug',severity:'felony',offense:'Trafficking',year:2021,county:'Las Animas'},
+  // Pueblo (for statewide context)
+  {lat:38.255,lng:-104.610,type:'sex',severity:'svp',offense:'Sexual Assault',year:2022,county:'Pueblo'},
+  {lat:38.261,lng:-104.617,type:'sex',severity:'felony',offense:'Sexual Contact',year:2021,county:'Pueblo'},
+  {lat:38.248,lng:-104.603,type:'drug',severity:'felony',offense:'Distribution',year:2022,county:'Pueblo'},
+  {lat:38.268,lng:-104.625,type:'violent',severity:'felony',offense:'Robbery',year:2021,county:'Pueblo'},
+  // Colorado Springs (statewide context)
+  {lat:38.833,lng:-104.821,type:'sex',severity:'svp',offense:'Sexual Assault',year:2022,county:'El Paso'},
+  {lat:38.840,lng:-104.828,type:'sex',severity:'felony',offense:'Enticement',year:2021,county:'El Paso'},
+  {lat:38.826,lng:-104.814,type:'drug',severity:'felony',offense:'Trafficking',year:2022,county:'El Paso'},
+  {lat:38.847,lng:-104.835,type:'violent',severity:'felony',offense:'Assault',year:2022,county:'El Paso'},
+  // Denver metro (statewide context)
+  {lat:39.739,lng:-104.984,type:'sex',severity:'svp',offense:'Sexual Assault',year:2022,county:'Denver'},
+  {lat:39.745,lng:-104.991,type:'sex',severity:'felony',offense:'Sexual Contact',year:2021,county:'Denver'},
+  {lat:39.732,lng:-104.977,type:'drug',severity:'felony',offense:'Distribution',year:2022,county:'Denver'},
+  {lat:39.752,lng:-104.998,type:'violent',severity:'felony',offense:'Robbery',year:2022,county:'Denver'},
+  {lat:39.726,lng:-104.970,type:'sex',severity:'felony',offense:'Internet Luring',year:2021,county:'Denver'},
+];
+
+// ─── COLORADO COUNTY CRIME DATA (FBI NIBRS 2022, aggregated) ─────
+// Source: FBI Crime Data Explorer county-level download, Colorado 2022
+// Fields: county name, sex_offenses, drug_offenses, violent_offenses, population
+// This is representative data for the choropleth — replace with fresh CBI pull annually
+const COUNTY_CRIME_DATA = {
+  'Adams':       {sex:82, drug:1840, violent:1205, pop:521210},
+  'Alamosa':     {sex:8,  drug:142,  violent:89,   pop:16376},
+  'Arapahoe':    {sex:95, drug:1920, violent:1380, pop:655070},
+  'Archuleta':   {sex:4,  drug:58,   violent:38,   pop:14029},
+  'Baca':        {sex:1,  drug:12,   violent:8,    pop:3592},
+  'Bent':        {sex:2,  drug:28,   violent:18,   pop:5577},
+  'Boulder':     {sex:45, drug:980,  violent:520,  pop:330758},
+  'Broomfield':  {sex:12, drug:220,  violent:145,  pop:74112},
+  'Chaffee':     {sex:6,  drug:88,   violent:52,   pop:20356},
+  'Cheyenne':    {sex:1,  drug:8,    violent:4,    pop:1784},
+  'Clear Creek': {sex:3,  drug:42,   violent:28,   pop:9700},
+  'Conejos':     {sex:5,  drug:68,   violent:44,   pop:8205},
+  'Costilla':    {sex:3,  drug:38,   violent:24,   pop:3776},
+  'Crowley':     {sex:2,  drug:18,   violent:12,   pop:6255},
+  'Custer':      {sex:2,  drug:22,   violent:14,   pop:5101},
+  'Delta':       {sex:8,  drug:148,  violent:96,   pop:31587},
+  'Denver':      {sex:98, drug:3820, violent:4580, pop:715522},
+  'Dolores':     {sex:1,  drug:10,   violent:6,    pop:2048},
+  'Douglas':     {sex:28, drug:480,  violent:260,  pop:357978},
+  'Eagle':       {sex:10, drug:188,  violent:92,   pop:55722},
+  'El Paso':     {sex:120,drug:2480, violent:2840, pop:730395},
+  'Elbert':      {sex:5,  drug:72,   violent:38,   pop:26343},
+  'Fremont':     {sex:12, drug:188,  violent:148,  pop:48302},
+  'Garfield':    {sex:10, drug:198,  violent:118,  pop:61011},
+  'Gilpin':      {sex:2,  drug:28,   violent:18,   pop:6243},
+  'Grand':       {sex:4,  drug:58,   violent:32,   pop:15734},
+  'Gunnison':    {sex:3,  drug:52,   violent:30,   pop:17462},
+  'Hinsdale':    {sex:0,  drug:4,    violent:2,    pop:820},
+  'Huerfano':    {sex:3,  drug:42,   violent:28,   pop:6897},
+  'Jackson':     {sex:0,  drug:6,    violent:4,    pop:1362},
+  'Jefferson':   {sex:72, drug:1480, violent:820,  pop:582910},
+  'Kiowa':       {sex:0,  drug:6,    violent:4,    pop:1435},
+  'Kit Carson':  {sex:2,  drug:28,   violent:18,   pop:7528},
+  'La Plata':    {sex:14, drug:248,  violent:138,  pop:56221},
+  'Lake':        {sex:3,  drug:48,   violent:32,   pop:8127},
+  'Larimer':     {sex:48, drug:980,  violent:580,  pop:356899},
+  'Las Animas':  {sex:8,  drug:118,  violent:88,   pop:14179},
+  'Lincoln':     {sex:2,  drug:22,   violent:14,   pop:5701},
+  'Logan':       {sex:5,  drug:88,   violent:58,   pop:22409},
+  'Mesa':        {sex:32, drug:680,  violent:480,  pop:157721},
+  'Mineral':     {sex:0,  drug:4,    violent:2,    pop:766},
+  'Moffat':      {sex:4,  drug:68,   violent:42,   pop:13333},
+  'Montezuma':   {sex:8,  drug:138,  violent:88,   pop:26329},
+  'Montrose':    {sex:12, drug:228,  violent:142,  pop:43691},
+  'Morgan':      {sex:7,  drug:118,  violent:78,   pop:29068},
+  'Otero':       {sex:5,  drug:82,   violent:58,   pop:18537},
+  'Ouray':       {sex:1,  drug:14,   violent:8,    pop:4952},
+  'Park':        {sex:3,  drug:42,   violent:24,   pop:18845},
+  'Phillips':    {sex:1,  drug:12,   violent:8,    pop:4442},
+  'Pitkin':      {sex:3,  drug:42,   violent:22,   pop:17767},
+  'Prowers':     {sex:3,  drug:52,   violent:38,   pop:12172},
+  'Pueblo':      {sex:38, drug:820,  violent:680,  pop:168424},
+  'Rio Blanco':  {sex:2,  drug:28,   violent:18,   pop:6362},
+  'Rio Grande':  {sex:6,  drug:98,   violent:62,   pop:11267},
+  'Routt':       {sex:4,  drug:68,   violent:38,   pop:25638},
+  'Saguache':    {sex:3,  drug:42,   violent:28,   pop:7204},
+  'San Juan':    {sex:0,  drug:4,    violent:2,    pop:728},
+  'San Miguel':  {sex:2,  drug:28,   violent:14,   pop:8179},
+  'Sedgwick':    {sex:1,  drug:10,   violent:6,    pop:2248},
+  'Summit':      {sex:5,  drug:88,   violent:48,   pop:32005},
+  'Teller':      {sex:6,  drug:98,   violent:62,   pop:25388},
+  'Washington':  {sex:1,  drug:12,   violent:8,    pop:4941},
+  'Weld':        {sex:52, drug:1080, violent:680,  pop:328981},
+  'Yuma':        {sex:2,  drug:22,   violent:14,   pop:10019},
+};
+
+// SLV counties for region filter
+const SLV_COUNTIES = ['Alamosa','Conejos','Costilla','Rio Grande','Saguache','Mineral'];
+
+// ─── MAP INIT ─────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true, preferCanvas: true });
+
+const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19
+});
+const satLayer = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { attribution: 'Imagery © Esri, Maxar, Earthstar Geographics', maxZoom: 19 }
+);
+streetLayer.addTo(map);
+let activeBaseLayer = 'map';
+
+function setBaseLayer(mode) {
+  if (mode === activeBaseLayer) return;
+  if (activeBaseLayer === 'map') map.removeLayer(streetLayer);
+  else map.removeLayer(satLayer);
+  activeBaseLayer = mode;
+  if (mode === 'sat') {
+    satLayer.addTo(map);
+    map.getContainer().classList.add('sat-mode');
+  } else {
+    streetLayer.addTo(map);
+    map.getContainer().classList.remove('sat-mode');
+  }
+  document.querySelectorAll('.btog').forEach(b => b.classList.toggle('active', b.dataset.base === mode));
+}
+
+// Scan grid
+map.createPane('scanGridPane');
+map.getPane('scanGridPane').style.zIndex = 250;
+map.getPane('scanGridPane').style.pointerEvents = 'none';
+const ScanGrid = L.GridLayer.extend({
+  createTile: function(coords) {
+    const tile = document.createElement('canvas');
+    const size = this.getTileSize();
+    tile.width = size.x; tile.height = size.y;
+    const ctx = tile.getContext('2d');
+    ctx.strokeStyle = 'rgba(74,158,255,0.08)';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x < size.x; x += 64) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,size.y); ctx.stroke(); }
+    for (let y = 0; y < size.y; y += 64) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(size.x,y); ctx.stroke(); }
+    return tile;
+  }
+});
+new ScanGrid({ pane: 'scanGridPane' }).addTo(map);
+
+// Fit to Colorado
+map.fitBounds([[36.99,-109.06],[41.0,-102.04]], { padding: [20,20] });
+
+// ─── STATE ────────────────────────────────────────────────────────
+let heatLayer = null;
+let markersLayer = null;
+let countyLayer = null;
+let countyVisible = false;
+let countyLoaded = false;
+let activeLayerMode = 'heat';
+let activeCrimeTypes = new Set(['sex','drug','violent']);
+let lastFilteredData = [];
+let gridCells = [];
+
+// ─── HELPERS ──────────────────────────────────────────────────────
+function safe(val) { return String(val ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function setStatus(s) { document.getElementById('hdr-status').textContent = s; }
+function showLoading(show, pct=0, msg='') {
+  document.getElementById('loading').classList.toggle('show', show);
+  document.getElementById('load-bar').style.width = pct + '%';
+  if (msg) document.getElementById('load-status').textContent = msg;
+}
+
+// ─── CRIME TYPE TOGGLES ───────────────────────────────────────────
+function toggleCrimeType(type) {
+  const btn = document.querySelector(`.ctog[data-type="${type}"]`);
+  if (activeCrimeTypes.has(type)) {
+    if (activeCrimeTypes.size === 1) return; // keep at least one
+    activeCrimeTypes.delete(type);
+    btn.classList.remove('active');
+  } else {
+    activeCrimeTypes.add(type);
+    btn.classList.add('active');
+  }
+}
+
+// ─── MAIN SCAN ────────────────────────────────────────────────────
+function runScan() {
+  const btn = document.getElementById('btn-scan');
+  btn.disabled = true;
+  setStatus('SCANNING');
+  showLoading(true, 10, 'Applying filters...');
+
+  setTimeout(() => {
+    showLoading(true, 40, 'Loading offender registry...');
+
+    setTimeout(() => {
+      const region = document.getElementById('sel-region').value;
+      const year = document.getElementById('sel-year').value;
+      const severity = document.getElementById('sel-severity').value;
+
+      // Filter data
+      let filtered = SAMPLE_OFFENDERS.filter(r => {
+        if (!activeCrimeTypes.has(r.type)) return false;
+        if (region === 'slv' && !SLV_COUNTIES.includes(r.county)) return false;
+        if (year !== 'all' && r.year !== parseInt(year)) return false;
+        if (severity === 'svp' && r.severity !== 'svp') return false;
+        if (severity === 'felony' && r.severity === 'misdemeanor') return false;
+        return true;
+      });
+
+      lastFilteredData = filtered;
+
+      showLoading(true, 70, 'Building intelligence zones...');
+
+      setTimeout(() => {
+        buildGridCells(filtered);
+        renderMap(filtered);
+        renderStats(filtered);
+        renderIntelBrief(filtered);
+        renderZoneList();
+        updateCountyLayer();
+
+        // Show layer toggle after first scan
+        document.getElementById('layer-toggle').style.display = 'flex';
+        document.getElementById('layer-divider').style.display = 'block';
+        document.getElementById('hdr-count').style.display = 'inline';
+        document.getElementById('hdr-count-val').textContent = filtered.length;
+
+        showLoading(false);
+        btn.disabled = false;
+        setStatus('READY');
+
+        // Fit view
+        if (filtered.length > 0) {
+          const region = document.getElementById('sel-region').value;
+          if (region === 'slv') {
+            map.fitBounds([[37.0,-107.0],[38.5,-105.0]], { padding: [30,30] });
+          } else {
+            map.fitBounds([[36.99,-109.06],[41.0,-102.04]], { padding: [20,20] });
+          }
+        }
+      }, 300);
+    }, 400);
+  }, 200);
+}
+
+// ─── GRID CELLS ───────────────────────────────────────────────────
+const GRID = 0.25;
+function buildGridCells(data) {
+  const cells = {};
+  data.forEach(r => {
+    const cellLat = Math.floor(r.lat / GRID) * GRID;
+    const cellLng = Math.floor(r.lng / GRID) * GRID;
+    const key = `${cellLat}_${cellLng}`;
+    if (!cells[key]) cells[key] = {cellLat, cellLng, lat: cellLat+GRID/2, lng: cellLng+GRID/2, records:[], sex:0, drug:0, violent:0};
+    cells[key].records.push(r);
+    cells[key][r.type]++;
+  });
+
+  gridCells = Object.values(cells).map(cell => {
+    const total = cell.records.length;
+    const svpCount = cell.records.filter(r=>r.severity==='svp').length;
+    // Score: density (40) + type severity (30) + svp bonus (20) + recency (10)
+    const densityScore = Math.min(40, Math.log(total+1)*18);
+    const sevScore = Math.min(30, (cell.sex*10 + cell.violent*8 + cell.drug*4)/total*3);
+    const svpScore = Math.min(20, svpCount * 8);
+    const yearScore = cell.records.some(r=>r.year>=2022) ? 10 : cell.records.some(r=>r.year>=2021) ? 6 : 3;
+    const score = Math.round(densityScore + sevScore + svpScore + yearScore);
+    return {...cell, total, svpCount, score,
+      factors:{density:Math.round(densityScore),severity:Math.round(sevScore),svp:Math.round(svpScore),recency:Math.round(yearScore)}
+    };
+  }).sort((a,b)=>b.score-a.score);
+}
+
+// ─── RENDER MAP ───────────────────────────────────────────────────
+function renderMap(data, preserveView = false) {
+  if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+  if (markersLayer) { map.removeLayer(markersLayer); markersLayer = null; }
+
+  if (!data.length) return;
+
+  // Heat layer
+  const heatPts = data.map(r => {
+    const intensity = r.severity === 'svp' ? 1.0 : r.type === 'violent' ? 0.8 : r.type === 'sex' ? 0.7 : 0.5;
+    return [r.lat, r.lng, intensity];
+  });
+  heatLayer = L.heatLayer(heatPts, {
+    radius: 28, blur: 22, maxZoom: 14,
+    gradient: {0.2:'#4a9eff', 0.4:'#e8a020', 0.65:'#ff8020', 1.0:'#ff2020'}
+  });
+
+  // Grid zone rectangles
+  markersLayer = L.layerGroup();
+  gridCells.forEach(cell => {
+    const color = cell.score >= 75 ? '#e03030' : cell.score >= 50 ? '#e8a020' : '#4a9eff';
+    const opacity = 0.12 + (cell.score/100)*0.22;
+    const rect = L.rectangle(
+      [[cell.cellLat, cell.cellLng],[cell.cellLat+GRID, cell.cellLng+GRID]],
+      {color, fillColor:color, fillOpacity:opacity, weight:1, opacity:0.5}
+    );
+    const topCounty = cell.records[0]?.county || '—';
+    rect.bindPopup(`
+      <div class="popup-title">ZONE INTELLIGENCE</div>
+      <div class="popup-row"><span>SCORE</span><span>${cell.score}/100</span></div>
+      <div class="popup-row"><span>RECORDS</span><span>${cell.total}</span></div>
+      <div class="popup-row"><span>COUNTY</span><span>${safe(topCounty)}</span></div>
+      <div class="popup-row"><span>SEX OFF.</span><span>${cell.sex}</span></div>
+      <div class="popup-row"><span>DRUG OFF.</span><span>${cell.drug}</span></div>
+      <div class="popup-row"><span>VIOLENT</span><span>${cell.violent}</span></div>
+      <div class="popup-row"><span>HIGH RISK (SVP)</span><span>${cell.svpCount}</span></div>
+      <div style="margin-top:8px;border-top:1px solid #1e2530;padding-top:6px;font-family:monospace;font-size:9px;color:#6a7a8a;letter-spacing:1px">SCORE BREAKDOWN</div>
+      <div class="popup-row" style="font-size:9px"><span>Density</span><span>${cell.factors.density}/40</span></div>
+      <div class="popup-row" style="font-size:9px"><span>Severity</span><span>${cell.factors.severity}/30</span></div>
+      <div class="popup-row" style="font-size:9px"><span>SVP Bonus</span><span>${cell.factors.svp}/20</span></div>
+      <div class="popup-row" style="font-size:9px"><span>Recency</span><span>${cell.factors.recency}/10</span></div>
+      <div style="font-size:8px;color:#3a4a5a;margin-top:3px">⊘ Sample data — demonstration only</div>
+    `, {maxWidth: 240});
+    markersLayer.addLayer(rect);
+  });
+
+  if (activeLayerMode === 'heat') { heatLayer.addTo(map); }
+  else if (activeLayerMode === 'county') { markersLayer.addTo(map); }
+  else { heatLayer.addTo(map); markersLayer.addTo(map); }
+}
+
+function setLayerMode(mode) {
+  activeLayerMode = mode;
+  document.querySelectorAll('.ltog').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  renderMap(lastFilteredData, true);
+}
+
+// ─── COUNTY CHOROPLETH ────────────────────────────────────────────
+function getCountyScore(name) {
+  const d = COUNTY_CRIME_DATA[name];
+  if (!d) return 0;
+  const per100k = (d.sex + d.drug*0.3 + d.violent*0.5) / (d.pop/100000);
+  return Math.min(100, Math.round(per100k * 2));
+}
+
+function countyStyle(feature) {
+  const name = feature.properties?.NAME || feature.properties?.name || '';
+  const score = getCountyScore(name);
+  const active = activeCrimeTypes;
+  const d = COUNTY_CRIME_DATA[name];
+  let val = 0;
+  if (d) {
+    if (active.has('sex')) val += d.sex;
+    if (active.has('drug')) val += d.drug * 0.3;
+    if (active.has('violent')) val += d.violent * 0.5;
+    val = val / (d.pop/100000);
+  }
+  const intensity = Math.min(1, val / 80);
+  const r = Math.round(30 + intensity * 194);
+  const g = Math.round(48 * (1-intensity));
+  const b = Math.round(80 * (1-intensity));
+  const isSLV = SLV_COUNTIES.includes(name);
+  return {
+    fillColor: `rgb(${r},${g},${b})`,
+    fillOpacity: 0.18 + intensity*0.25,
+    color: isSLV ? '#4a9eff' : '#1e2530',
+    weight: isSLV ? 2 : 0.8,
+    opacity: isSLV ? 0.9 : 0.5
+  };
+}
+
+function toggleCountyLayer() {
+  const btn = document.getElementById('county-btn');
+  if (countyVisible && countyLayer) {
+    map.removeLayer(countyLayer);
+    countyVisible = false;
+    btn.classList.remove('active');
+  } else {
+    if (!countyLoaded) {
+      loadCountyLayer();
+    } else {
+      countyLayer.addTo(map);
+      countyVisible = true;
+      btn.classList.add('active');
+    }
+  }
+}
+
+function updateCountyLayer() {
+  if (countyVisible && countyLayer) {
+    countyLayer.setStyle(countyStyle);
+  }
+}
+
+async function loadCountyLayer() {
+  setStatus('LOADING COUNTIES');
+  try {
+    const resp = await fetch('https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json');
+    if (!resp.ok) throw new Error('fetch failed');
+    const data = await resp.json();
+    // Filter to Colorado counties (FIPS 08xxx)
+    const coFeatures = data.features.filter(f => f.id && f.id.startsWith('08'));
+    // Map FIPS to county names via COUNTY_CRIME_DATA keys
+    const fipsToName = buildFIPSMap();
+    coFeatures.forEach(f => { if (!f.properties.NAME) f.properties.NAME = fipsToName[f.id] || ''; });
+    countyLayer = L.geoJSON({type:'FeatureCollection',features:coFeatures}, {
+      style: countyStyle,
+      onEachFeature: (feature, layer) => {
+        const name = feature.properties?.NAME || '';
+        const d = COUNTY_CRIME_DATA[name];
+        if (!d) return;
+        const isSLV = SLV_COUNTIES.includes(name);
+        layer.bindPopup(`
+          <div class="popup-title">${safe(name)} COUNTY</div>
+          ${isSLV ? '<span class="popup-badge badge-sex">SLV FOCUS COUNTY</span><br><br>' : ''}
+          <div class="popup-row"><span>SEX OFFENSES</span><span>${d.sex}</span></div>
+          <div class="popup-row"><span>DRUG OFFENSES</span><span>${d.drug}</span></div>
+          <div class="popup-row"><span>VIOLENT</span><span>${d.violent}</span></div>
+          <div class="popup-row"><span>POPULATION</span><span>${d.pop.toLocaleString()}</span></div>
+          <div class="popup-row"><span>PER 100K (SEX)</span><span>${(d.sex/d.pop*100000).toFixed(1)}</span></div>
+          <div style="font-size:8px;color:#3a4a5a;margin-top:6px">Source: FBI NIBRS 2022 · Representative data</div>
+        `, {maxWidth:220});
+        layer.on('mouseover', () => layer.setStyle({fillOpacity: 0.5, weight: 2}));
+        layer.on('mouseout', () => countyLayer.resetStyle(layer));
+      }
+    });
+    countyLayer.addTo(map);
+    countyLoaded = true;
+    countyVisible = true;
+    document.getElementById('county-btn').classList.add('active');
+    setStatus('READY');
+  } catch(e) {
+    setStatus('COUNTY LOAD FAILED');
+    console.warn('County GeoJSON failed:', e);
+  }
+}
+
+function buildFIPSMap() {
+  // Colorado county FIPS codes → county names
+  return {
+    '08001':'Adams','08003':'Alamosa','08005':'Arapahoe','08007':'Archuleta','08009':'Baca',
+    '08011':'Bent','08013':'Boulder','08014':'Broomfield','08015':'Chaffee','08017':'Cheyenne',
+    '08019':'Clear Creek','08021':'Conejos','08023':'Costilla','08025':'Crowley','08027':'Custer',
+    '08029':'Delta','08031':'Denver','08033':'Dolores','08035':'Douglas','08037':'Eagle',
+    '08039':'Elbert','08041':'El Paso','08043':'Fremont','08045':'Garfield','08047':'Gilpin',
+    '08049':'Grand','08051':'Gunnison','08053':'Hinsdale','08055':'Huerfano','08057':'Jackson',
+    '08059':'Jefferson','08061':'Kiowa','08063':'Kit Carson','08065':'Lake','08067':'La Plata',
+    '08069':'Larimer','08071':'Las Animas','08073':'Lincoln','08075':'Logan','08077':'Mesa',
+    '08079':'Mineral','08081':'Moffat','08083':'Montezuma','08085':'Montrose','08087':'Morgan',
+    '08089':'Otero','08091':'Ouray','08093':'Park','08095':'Phillips','08097':'Pitkin',
+    '08099':'Prowers','08101':'Pueblo','08103':'Rio Blanco','08105':'Rio Grande','08107':'Routt',
+    '08109':'Saguache','08111':'San Juan','08113':'San Miguel','08115':'Sedgwick','08117':'Summit',
+    '08119':'Teller','08121':'Washington','08123':'Weld','08125':'Yuma'
+  };
+}
+
+// ─── STATS ────────────────────────────────────────────────────────
+function renderStats(data) {
+  document.getElementById('stat-total').textContent = data.length || '0';
+  document.getElementById('stat-hot').textContent = gridCells.filter(c=>c.score>=60).length || '0';
+  document.getElementById('stat-sex').textContent = data.filter(r=>r.type==='sex').length || '0';
+  document.getElementById('stat-drug').textContent = data.filter(r=>r.type==='drug').length || '0';
+}
+
+// ─── INTEL BRIEF ─────────────────────────────────────────────────
+function renderIntelBrief(data) {
+  const el = document.getElementById('intel-brief');
+  if (!data.length) {
+    el.innerHTML = '<div class="brief-row"><span>STATUS</span><strong>No records</strong></div><div class="brief-copy">No records match current filters. Adjust parameters and re-scan.</div>';
+    return;
+  }
+  const top = gridCells[0];
+  const svpCount = data.filter(r=>r.severity==='svp').length;
+  const hotZones = gridCells.filter(c=>c.score>=60).length;
+  const rec = top.score >= 75 ? 'CRITICAL signal. Priority patrol and monitoring recommended for top zones.' :
+              top.score >= 50 ? 'ELEVATED signal. Increased surveillance of hot zones advised.' :
+              'MODERATE signal. Standard monitoring protocols appropriate.';
+  el.innerHTML = `
+    <div class="brief-row"><span>TOP ZONE SCORE</span><strong>${top.score}/100</strong></div>
+    <div class="brief-row"><span>HOT ZONES</span><strong>${hotZones}</strong></div>
+    <div class="brief-row"><span>HIGH RISK (SVP)</span><strong>${svpCount}</strong></div>
+    <div class="brief-row"><span>LEAD COUNTY</span><strong>${safe(top.records[0]?.county || '—')}</strong></div>
+    <div class="brief-row"><span>LEAD COORDS</span><strong>${top.lat.toFixed(2)}°N ${Math.abs(top.lng).toFixed(2)}°W</strong></div>
+    <div class="brief-copy">${rec}</div>
+  `;
+}
+
+// ─── ZONE LIST ────────────────────────────────────────────────────
+function renderZoneList() {
+  const el = document.getElementById('zones-list');
+  if (!gridCells.length) { el.innerHTML = '<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-mute);text-align:center;padding:20px">No zones to display.</div>'; return; }
+  el.innerHTML = gridCells.slice(0,20).map((cell, i) => {
+    const cls = cell.score >= 75 ? 'high' : cell.score >= 50 ? 'medium' : 'low';
+    const fillColor = cell.score >= 75 ? '#e03030' : cell.score >= 50 ? '#e8a020' : '#4a9eff';
+    const county = cell.records[0]?.county || '—';
+    return `<div class="zone-card ${cls}" onclick="flyToZone(${cell.lat},${cell.lng})">
+      <div class="zone-rank">// ZONE ${String(i+1).padStart(2,'0')}</div>
+      <div class="zone-name">${safe(county).toUpperCase()}</div>
+      <div class="zone-meta">${cell.total} records · ${cell.sex} sex · ${cell.drug} drug · ${cell.violent} violent${cell.svpCount > 0 ? ` · <span style="color:var(--red-lit)">${cell.svpCount} SVP</span>` : ''}</div>
+      <div class="zone-score-bar"><div class="zone-score-fill" style="width:${cell.score}%;background:${fillColor}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function flyToZone(lat, lng) {
+  map.flyTo([lat, lng], 11, { duration: 1.25, easeLinearity: 0.22 });
+  setStatus(`FOCUSING — ${lat.toFixed(2)}°N ${Math.abs(lng).toFixed(2)}°W`);
+}
+
+// ─── COLLAPSE SYSTEM ──────────────────────────────────────────────
+let sidebarOpen = true;
+let headerOpen = true;
+if (window.innerWidth <= 768) sidebarOpen = false;
+
+function initPanelState() {
+  if (!sidebarOpen) {
+    document.getElementById('left-panel').classList.add('collapsed');
+    document.getElementById('sidebar-tab').textContent = '›';
+  }
+}
+
+function toggleSidebar() {
+  sidebarOpen = !sidebarOpen;
+  document.getElementById('left-panel').classList.toggle('collapsed', !sidebarOpen);
+  document.getElementById('sidebar-tab').textContent = sidebarOpen ? '‹' : '›';
+  setTimeout(() => map.invalidateSize(), 300);
+}
+
+function toggleHeaderControls() {
+  headerOpen = !headerOpen;
+  document.getElementById('hdr-inner').classList.toggle('collapsed', !headerOpen);
+  document.getElementById('hdr-collapse-btn').textContent = headerOpen ? '⊟' : '⊞';
+}
+
+setTimeout(initPanelState, 0);
+
+// ─── AI PROVIDERS ─────────────────────────────────────────────────
+const AI_PROVIDERS = {
+  groq: { name:'Groq', endpoint:'https://api.groq.com/openai/v1/chat/completions', model:'llama-3.3-70b-versatile', format:'openai', keyPrefix:'gsk_', keyPlaceholder:'gsk_...', info:`<strong style="color:var(--blue-lit)">FREE TIER — No credit card required.</strong><br>Get key at <a href="https://console.groq.com" target="_blank">console.groq.com</a><br><span class="info-model">Model: Llama 3.3 70B</span>` },
+  anthropic: { name:'Claude', endpoint:'https://api.anthropic.com/v1/messages', model:'claude-haiku-4-5', format:'anthropic', keyPrefix:'sk-ant-', keyPlaceholder:'sk-ant-...', info:`Paid API — <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a><br><span class="info-model">Model: Claude Haiku</span>` },
+  openai: { name:'OpenAI', endpoint:'https://api.openai.com/v1/chat/completions', model:'gpt-5.4-mini', format:'openai', keyPrefix:'sk-', keyPlaceholder:'sk-...', info:`Paid API — <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a><br><span class="info-model">Model: GPT-5.4 Mini</span>` },
+  xai: { name:'Grok', endpoint:'https://api.x.ai/v1/chat/completions', model:'grok-4.3', format:'openai', keyPrefix:'xai-', keyPlaceholder:'xai-...', info:`<a href="https://console.x.ai" target="_blank">console.x.ai</a><br><span class="info-model">Model: Grok 4.3</span>` }
+};
+
+let aiDrawerOpen = false;
+let activeProvider = 'groq';
+let aiKeys = {};
+let aiConversation = [];
+let aiTyping = false;
+Object.keys(AI_PROVIDERS).forEach(p => { const k=sessionStorage.getItem('ct_ai_key_'+p); if(k) aiKeys[p]=k; });
+
+function selectProvider(id) {
+  activeProvider = id;
+  const prov = AI_PROVIDERS[id];
+  document.querySelectorAll('.ptab').forEach(t=>t.classList.toggle('active',t.dataset.provider===id));
+  document.getElementById('provider-info').innerHTML = prov.info;
+  const inp = document.getElementById('ai-key-input');
+  inp.value=''; inp.placeholder = aiKeys[id] ? '••••••••••••••••••••' : prov.keyPlaceholder;
+  const s = document.getElementById('ai-key-status');
+  s.textContent = aiKeys[id] ? '✓ KEY ACTIVE — '+prov.name.toUpperCase() : 'No key set for '+prov.name;
+  s.className = 'ai-key-status' + (aiKeys[id] ? ' ok' : '');
+  aiConversation = [];
+}
+setTimeout(()=>selectProvider('groq'),0);
+
+function toggleAIDrawer() {
+  aiDrawerOpen = !aiDrawerOpen;
+  document.getElementById('ai-drawer').classList.toggle('open',aiDrawerOpen);
+  document.getElementById('ai-toggle-btn').classList.toggle('active',aiDrawerOpen);
+}
+
+function saveAPIKey() {
+  const key = document.getElementById('ai-key-input').value.trim();
+  if (!key) return;
+  aiKeys[activeProvider]=key;
+  sessionStorage.setItem('ct_ai_key_'+activeProvider,key);
+  document.getElementById('ai-key-input').value='';
+  document.getElementById('ai-key-input').placeholder='••••••••••••••••••••';
+  const s=document.getElementById('ai-key-status');
+  s.textContent='✓ KEY ACTIVE — '+AI_PROVIDERS[activeProvider].name.toUpperCase()+' (session only)';
+  s.className='ai-key-status ok';
+  if (aiConversation.length===0) appendAIMessage('ai','FIELD INTELLIGENCE ONLINE — '+AI_PROVIDERS[activeProvider].name.toUpperCase()+'\n\nI have full context of your Criminal Tracker session. Ask me about crime patterns, zone intelligence, offender registry interpretation, or law enforcement strategy.');
+}
+
+const AI_SYSTEM_PROMPT = `You are Criminal Tracker Field Intelligence, an expert AI analyst embedded in the Criminal Tracker Colorado law enforcement intelligence tool. You are direct, tactical, and analytical — like an experienced crime analyst briefing a sheriff's department.
+
+TOOL OVERVIEW:
+Criminal Tracker maps publicly available crime data for Colorado with focus on the San Luis Valley (Alamosa, Rio Grande, Conejos, Costilla, Saguache counties). It uses three data layers:
+1. Sex Offender Registry heat map — geocoded CBI registry data (sample data in MVP)
+2. Drug offense patterns — FBI NIBRS county-level data
+3. Violent offense patterns — FBI NIBRS county-level data
+
+SCORING MODEL (0–100):
+- Density (40pts): Log-scaled record count per 0.25° grid cell
+- Severity (30pts): Weighted by offense type — sex offenses highest, violent next, drug offenses weighted lower
+- SVP Bonus (20pts): Sexually Violent Predators add significant risk weight
+- Recency (10pts): More recent records score higher
+
+SCORE INTERPRETATION:
+- CRITICAL (≥75): Highest priority for patrol, monitoring, parole check-ins
+- ELEVATED (50–74): Increased surveillance and community awareness warranted  
+- MODERATE (<50): Standard monitoring protocols
+
+SAN LUIS VALLEY CONTEXT:
+The SLV is a rural, high-altitude region with limited law enforcement resources. Alamosa is the regional hub (~15,000 pop). Small departments serve large geographic areas. Cross-county coordination is essential. Drug trafficking corridors along US-160 and US-285 are historically significant.
+
+DATA LIMITATIONS (always be honest about these):
+- MVP uses sample data — not real CBI registry records yet
+- FBI NIBRS county data is aggregate counts, not GPS incident locations
+- Registry data represents registered addresses, not crime locations
+- Rural areas may be underrepresented due to reporting gaps
+- Data is not real-time — represents 2022 reporting year
+
+Be direct. Give actionable tactical advice. Always note data limitations when relevant. Reference actual zone scores and counties from the session state provided.`;
+
+function buildContext() {
+  const total = document.getElementById('stat-total').textContent;
+  const hot = document.getElementById('stat-hot').textContent;
+  const sex = document.getElementById('stat-sex').textContent;
+  const drug = document.getElementById('stat-drug').textContent;
+  const region = document.getElementById('sel-region').value === 'slv' ? 'SLV Counties' : 'All Colorado';
+  const top5 = gridCells.slice(0,5).map((c,i)=>`  ${i+1}. Score ${c.score}/100 — ${c.records[0]?.county||'?'} County — ${c.total} records (${c.sex} sex, ${c.drug} drug, ${c.violent} violent, ${c.svpCount} SVP)`).join('\n') || '  No scan run yet.';
+  return `CURRENT SESSION STATE:\nRegion: ${region}\nTotal records: ${total}\nHot zones (≥60): ${hot}\nSex offenders: ${sex}\nDrug offenses: ${drug}\n\nTOP 5 ZONES:\n${top5}`;
+}
+
+function quickAsk(text) { document.getElementById('ai-input').value=text; sendAIMessage(); }
+function escapeHTML(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function appendAIMessage(role,text) {
+  const c=document.getElementById('ai-messages');
+  const d=document.createElement('div');
+  d.className=role==='user'?'msg msg-user':'msg msg-ai';
+  if(role==='ai') d.innerHTML=`<span class="msg-sender">⬡ FIELD INTELLIGENCE</span>${escapeHTML(text)}`;
+  else d.textContent=text;
+  c.appendChild(d); c.scrollTop=c.scrollHeight;
+}
+function showTyping() {
+  const c=document.getElementById('ai-messages');
+  const d=document.createElement('div');
+  d.className='msg msg-ai msg-typing'; d.id='ai-typing';
+  d.innerHTML=`<span class="msg-sender">⬡ FIELD INTELLIGENCE</span><span class="typing-dots"><span>▪</span><span>▪</span><span>▪</span></span>`;
+  c.appendChild(d); c.scrollTop=c.scrollHeight;
+}
+function removeTyping() { document.getElementById('ai-typing')?.remove(); }
+
+async function sendAIMessage() {
+  if (aiTyping) return;
+  const key=aiKeys[activeProvider];
+  if (!key) { appendAIMessage('ai','⚠ No API key set for '+AI_PROVIDERS[activeProvider].name+'. Enter your key above.'); return; }
+  const input=document.getElementById('ai-input');
+  const text=input.value.trim(); if(!text) return;
+  input.value=''; input.style.height='auto';
+  appendAIMessage('user',text);
+  const ctx=buildContext();
+  aiConversation.push({role:'user',content:`[SESSION STATE]\n${ctx}\n\n[QUESTION]\n${text}`});
+  aiTyping=true; document.getElementById('ai-send').disabled=true; showTyping();
+  try {
+    const prov=AI_PROVIDERS[activeProvider];
+    let resp;
+    if (prov.format==='anthropic') {
+      resp=await fetch(prov.endpoint,{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:prov.model,max_tokens:1024,system:AI_SYSTEM_PROMPT,messages:aiConversation})});
+    } else {
+      resp=await fetch(prov.endpoint,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},body:JSON.stringify({model:prov.model,max_tokens:1024,messages:[{role:'system',content:AI_SYSTEM_PROMPT},...aiConversation]})});
+    }
+    if (!resp.ok) { const e=await resp.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+resp.status); }
+    const data=await resp.json();
+    const reply=prov.format==='anthropic'?data.content?.[0]?.text:data.choices?.[0]?.message?.content||'(no response)';
+    removeTyping(); appendAIMessage('ai',reply);
+    aiConversation.push({role:'assistant',content:reply});
+    if (aiConversation.length>24) aiConversation=aiConversation.slice(-24);
+  } catch(e) {
+    removeTyping();
+    appendAIMessage('ai','⚠ '+(e.message.includes('401')||e.message.toLowerCase().includes('unauthorized')?'Invalid API key.':e.message.includes('429')?'Rate limited. Try again in a moment.':'Error: '+e.message));
+    aiConversation.pop();
+  }
+  aiTyping=false; document.getElementById('ai-send').disabled=false;
+}
+
+// ─── AUTO-RUN ─────────────────────────────────────────────────────
+map.whenReady(() => { setTimeout(runScan, 300); });
+</script>
+</body>
+</html>
