@@ -6,6 +6,7 @@ A browser-based law enforcement intelligence tool for Colorado, built on publicl
 > ⚠ **Current version uses sample data for demonstration purposes.** Architecture is production-ready. Real CBI registry data is obtained via formal records request and drops in as a single variable swap.
 
 ---
+**Live demo:** [jkh2.github.io/criminal-tracker](https://jkh2.github.io/criminal-tracker)
 
 ## What It Does
 
